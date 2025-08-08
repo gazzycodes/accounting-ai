@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: theme(colors.electric.800);
+  }
+  
+  body {
+    @apply text-white;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Glassmorphism effects */
+  .glass {
+    @apply backdrop-blur-lg bg-glass-light border border-white/10;
+  }
+  
+  .glass-dark {
+    @apply backdrop-blur-lg bg-glass-dark border border-white/5;
+  }
+  
+  /* Electric gradient backgrounds */
+  .bg-electric-gradient {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+  }
+  
+  .bg-electric-gradient-dark {
+    background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%);
+  }
+  
+  /* Animated backgrounds */
+  .bg-animated {
+    background: linear-gradient(-45deg, #0f0f23, #1a1a2e, #16213e, #2d1b69);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+  }
+  
+  /* Custom scrollbar */
+  .scrollbar-electric::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .scrollbar-electric::-webkit-scrollbar-track {
+    @apply bg-gray-900/20 rounded;
+  }
+  
+  .scrollbar-electric::-webkit-scrollbar-thumb {
+    @apply bg-electric-600 rounded;
+  }
+  
+  .scrollbar-electric::-webkit-scrollbar-thumb:hover {
+    @apply bg-electric-500;
+  }
+  
+  /* Button styles */
+  .btn-electric {
+    @apply bg-electric-gradient hover:bg-electric-gradient-dark text-white font-medium px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-electric-500/25;
+  }
+  
+  .btn-glass {
+    @apply glass text-white font-medium px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 hover:bg-white/10;
+  }
+  
+  /* Input styles */
+  .input-glass {
+    @apply glass text-white placeholder-gray-400 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-500 focus:border-transparent transition-all duration-300;
+  }
+  
+  /* Card styles */
+  .card-glass {
+    @apply glass rounded-xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1;
+  }
+  
+  /* Typewriter effect */
+  .typewriter {
+    overflow: hidden;
+    border-right: 2px solid #7c3aed;
+    white-space: nowrap;
+    animation: typewriter 2s steps(20) forwards, blink 1s infinite;
+  }
+  
+  /* Pulse animation for chat button */
+  .pulse-ring {
+    @apply absolute inset-0 rounded-full bg-electric-400 opacity-30;
+    animation: pulse-ring 2s infinite;
+  }
+}
+
+@layer utilities {
+  /* Kinetic scrolling */
+  .kinetic-scroll {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .kinetic-scroll > * {
+    scroll-snap-align: start;
+  }
+  
+  /* Text shadows for better readability on glass */
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+  
+  .text-shadow-lg {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Custom animations */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes blink {
+  0%, 50% {
+    border-color: #7c3aed;
+  }
+  51%, 100% {
+    border-color: transparent;
+  }
+}
+
+/* Three.js canvas styles */
+.three-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Lottie animation container */
+.lottie-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 200px;
+}
+
+/* Modal and drawer overlays */
+.modal-overlay {
+  backdrop-filter: blur(20px);
+  background: rgba(15, 15, 35, 0.8);
+}
+
+.drawer-overlay {
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive design helpers */
+@media (max-width: 768px) {
+  .glass {
+    @apply backdrop-blur-md;
+  }
+  
+  .card-glass {
+    @apply p-4;
+  }
+  
+  .btn-electric, .btn-glass {
+    @apply px-4 py-2 text-sm;
+  }
+} 
