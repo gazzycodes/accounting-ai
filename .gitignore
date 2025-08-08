@@ -1,0 +1,4 @@
+# Only exclude these essential files
+*.log
+.DS_Store
+Thumbs.db 
