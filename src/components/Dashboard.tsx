@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
-import axios from 'axios'
+import { FinancialDataService } from '../services/financialDataService'
+import { useMockDataStore } from '../store/mockDataStore'
 
 interface DashboardData {
   metrics: {
@@ -15,6 +16,24 @@ interface DashboardData {
     date: string
     amount: number
   }>
+  aiInsights?: Array<{
+    id: string
+    category: string
+    message: string
+    urgency: 'low' | 'medium' | 'high'
+    icon: string
+  }>
+}
+
+interface ChartOfAccountsItem { 
+  code: string; 
+  name: string; 
+  type: string; 
+  balance: number;
+}
+
+interface ChartOfAccountsData {
+  accounts: ChartOfAccountsItem[]
 }
 
 interface DashboardProps {
@@ -25,11 +44,20 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
   const [aiSummary, setAiSummary] = useState('')
   const [isLoadingSummary, setIsLoadingSummary] = useState(false)
 
+  // Subscribe to store changes for real-time updates
+  const storeData = useMockDataStore()
+
   const { data: dashboardData, isLoading } = useQuery<DashboardData>({
-    queryKey: ['dashboard'],
-    queryFn: async () => {
-      const response = await axios.get('/api/dashboard')
-      return response.data
+    queryKey: ['dashboard', storeData.totals, storeData.transactions.length], // Depend on store changes
+    queryFn: () => {
+      return FinancialDataService.getDashboardData()
+    },
+  })
+
+  const { data: coaData } = useQuery<ChartOfAccountsData>({
+    queryKey: ['chart-of-accounts', storeData.accounts], // Depend on account changes
+    queryFn: () => {
+      return FinancialDataService.getChartOfAccountsData()
     },
   })
 
@@ -40,39 +68,29 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
     }
   }, [dashboardData, aiSummary])
 
-  const generateAISummary = async () => {
+  const generateAISummary = () => {
     if (!dashboardData) return
     
     setIsLoadingSummary(true)
-    try {
-      const profitMargin = ((dashboardData.metrics.netProfit / dashboardData.metrics.totalRevenue) * 100).toFixed(1)
-      const expenseRatio = ((dashboardData.metrics.totalExpenses / dashboardData.metrics.totalRevenue) * 100).toFixed(1)
-      
-      const prompt = `You are a positive financial advisor analyzing a business's performance. Based on this excellent financial data, provide an encouraging and insightful summary in one sentence that celebrates the strong performance:
-
-      Financial Metrics:
-      - Total Revenue: $${dashboardData.metrics.totalRevenue.toLocaleString()}
-      - Total Expenses: $${dashboardData.metrics.totalExpenses.toLocaleString()}  
-      - Net Profit: $${dashboardData.metrics.netProfit.toLocaleString()}
-      - Profit Margin: ${profitMargin}% (This is excellent!)
-      - Expense Ratio: ${expenseRatio}% (Well controlled!)
-      - Transaction Count: ${dashboardData.metrics.transactionCount}
-      
-      Context: A 24% profit margin is considered excellent in most industries. Focus on the POSITIVE aspects like strong profitability, healthy cash flow, or efficient expense management. 
-      
-      Tone: Encouraging, professional, and celebratory. Avoid mentioning low transaction counts as a concern - instead focus on the quality of the financial performance.
-      
-      Start with phrases like "Excellent," "Strong," "Outstanding," or "Impressive" performance.`
-
-      const response = await axios.post('/api/ai/generate', { prompt })
-      setAiSummary(response.data.content)
-    } catch (error) {
-      console.error('Failed to generate AI summary:', error)
-      // Enhanced fallback summary that celebrates the performance
-      setAiSummary(`Outstanding financial performance with an impressive ${((dashboardData.metrics.netProfit / dashboardData.metrics.totalRevenue) * 100).toFixed(1)}% profit margin and excellent expense control demonstrates strong business fundamentals.`)
-    } finally {
-      setIsLoadingSummary(false)
+    
+    // Use dashboard-specific AI insights
+    const insights = FinancialDataService.getDashboardInsights()
+    
+    if (insights.length > 0) {
+      // Create a comprehensive summary from multiple insights
+      const summaryParts = insights.map(insight => insight.message)
+      setAiSummary(summaryParts.join(' '))
+    } else {
+      // Fallback for when no insights are available
+      if (dashboardData.metrics.totalRevenue > 0) {
+        const profitMargin = ((dashboardData.metrics.netProfit / dashboardData.metrics.totalRevenue) * 100).toFixed(1)
+        setAiSummary(`Business performance shows ${profitMargin}% profit margin with ${dashboardData.metrics.transactionCount} transactions recorded.`)
+      } else {
+        setAiSummary('🚀 Ready to start! Add your first expense or import a receipt to begin tracking your finances.')
+      }
     }
+    
+      setIsLoadingSummary(false)
   }
 
   const formatCurrency = (amount: number) => {
@@ -88,28 +106,28 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
       value: dashboardData.metrics.totalRevenue,
       color: 'from-green-400 to-green-600',
       icon: '💰',
-      change: '+12.5%'
+      change: dashboardData.metrics.totalRevenue > 0 ? '+0.0%' : '—'
     },
     {
       title: 'Total Expenses',
       value: dashboardData.metrics.totalExpenses,
       color: 'from-red-400 to-red-600',
       icon: '💸',
-      change: '+8.2%'
+      change: dashboardData.metrics.totalExpenses > 0 ? '+0.0%' : '—'
     },
     {
       title: 'Net Profit',
       value: dashboardData.metrics.netProfit,
       color: 'from-electric-400 to-electric-600',
       icon: '📈',
-      change: '+15.3%'
+      change: dashboardData.metrics.netProfit !== 0 ? (dashboardData.metrics.netProfit > 0 ? '+0.0%' : '-0.0%') : '—'
     },
     {
       title: 'Transactions',
       value: dashboardData.metrics.transactionCount,
       color: 'from-blue-400 to-blue-600',
       icon: '🔄',
-      change: '+5.1%',
+      change: dashboardData.metrics.transactionCount > 0 ? `${dashboardData.metrics.transactionCount} entries` : '—',
       isCount: true
     }
   ] : []
@@ -160,14 +178,64 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
             <span className="text-gray-300">Analyzing your financial data...</span>
           </div>
         ) : (
+          <div>
           <motion.p
-            className="text-gray-300 text-lg leading-relaxed"
+              className="text-gray-300 text-lg leading-relaxed mb-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.8 }}
           >
             {aiSummary}
           </motion.p>
+            
+            {/* Dynamic Insights Panel */}
+            {(() => {
+              const allInsights = FinancialDataService.getAIInsights()
+              if (allInsights.length > 0) {
+                return (
+                  <div className="space-y-3 mt-4">
+                    {allInsights.slice(0, 3).map((insight, index) => (
+                      <motion.div
+                        key={insight.id}
+                        className={`p-3 rounded-lg border-l-4 ${
+                          insight.urgency === 'high' 
+                            ? 'bg-red-900/20 border-red-500' 
+                            : insight.urgency === 'medium'
+                            ? 'bg-yellow-900/20 border-yellow-500'
+                            : 'bg-green-900/20 border-green-500'
+                        }`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <span className="text-xl">{insight.icon}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="text-sm font-medium text-gray-300">
+                                {insight.category}
+                              </span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                insight.urgency === 'high'
+                                  ? 'bg-red-500/20 text-red-300'
+                                  : insight.urgency === 'medium'
+                                  ? 'bg-yellow-500/20 text-yellow-300'
+                                  : 'bg-green-500/20 text-green-300'
+                              }`}>
+                                {insight.urgency}
+                              </span>
+                            </div>
+                            <p className="text-gray-400 text-sm">{insight.message}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )
+              }
+              return null
+            })()}
+          </div>
         )}
       </motion.div>
 
@@ -241,7 +309,7 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
 
       {/* Recent Activity */}
       <motion.div
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8, duration: 0.6 }}
@@ -254,21 +322,131 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
               <span className="text-gray-300">Cash Flow</span>
-              <span className="text-green-400 font-medium">Positive</span>
+              <span className={`font-medium ${
+                dashboardData && dashboardData.metrics.netProfit > 0 
+                  ? 'text-green-400' 
+                  : dashboardData && dashboardData.metrics.netProfit < 0 
+                    ? 'text-red-400' 
+                    : 'text-gray-400'
+              }`}>
+                {dashboardData 
+                  ? dashboardData.metrics.netProfit > 0 
+                    ? 'Positive' 
+                    : dashboardData.metrics.netProfit < 0 
+                      ? 'Negative' 
+                      : 'Neutral'
+                  : '—'
+                }
+              </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
               <span className="text-gray-300">Expense Ratio</span>
               <span className="text-yellow-400 font-medium">
-                {dashboardData ? Math.round((dashboardData.metrics.totalExpenses / dashboardData.metrics.totalRevenue) * 100) : 0}%
+                {dashboardData && dashboardData.metrics.totalRevenue > 0 
+                  ? Math.round((dashboardData.metrics.totalExpenses / dashboardData.metrics.totalRevenue) * 100) 
+                  : 0}%
               </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
               <span className="text-gray-300">Profit Margin</span>
-              <span className="text-electric-400 font-medium">
-                {dashboardData ? Math.round((dashboardData.metrics.netProfit / dashboardData.metrics.totalRevenue) * 100) : 0}%
+              <span className={`font-medium ${
+                dashboardData && dashboardData.metrics.totalRevenue > 0 
+                  ? Math.round((dashboardData.metrics.netProfit / dashboardData.metrics.totalRevenue) * 100) > 0
+                    ? 'text-electric-400'
+                    : 'text-red-400'
+                  : 'text-gray-400'
+              }`}>
+                {dashboardData && dashboardData.metrics.totalRevenue > 0 
+                  ? Math.round((dashboardData.metrics.netProfit / dashboardData.metrics.totalRevenue) * 100) 
+                  : 0}%
               </span>
             </div>
           </div>
+        </div>
+
+        <div className="card-glass">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-white flex items-center">
+              <span className="mr-2">📋</span>
+              Chart of Accounts
+            </h3>
+            <motion.button
+              onClick={onViewReports}
+              className="text-electric-400 hover:text-electric-300 text-sm font-medium transition-colors"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              View All →
+            </motion.button>
+          </div>
+          
+          {coaData ? (
+            <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20">
+              {['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'].map((type, typeIndex) => {
+                const accounts = coaData.accounts.filter(acc => acc.type === type).slice(0, 3)
+                if (accounts.length === 0) return null
+                
+                const typeLabels = {
+                  'ASSET': '🏢 Assets',
+                  'LIABILITY': '💳 Liabilities', 
+                  'EQUITY': '👑 Equity',
+                  'REVENUE': '💰 Revenue',
+                  'EXPENSE': '💸 Expenses'
+                }
+
+                return (
+                  <motion.div
+                    key={type}
+                    className="mb-4"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: typeIndex * 0.1, duration: 0.3 }}
+                  >
+                    <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">
+                      {typeLabels[type as keyof typeof typeLabels]}
+                    </h4>
+                    <div className="space-y-2">
+                      {accounts.map((account, index) => (
+                        <motion.div
+                          key={account.code}
+                          className="flex items-center justify-between p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group cursor-pointer"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: (typeIndex * 0.1) + (index * 0.05), duration: 0.3 }}
+                          whileHover={{ scale: 1.02, x: 5 }}
+                        >
+                          <div className="flex items-center space-x-2 min-w-0 flex-1">
+                            <span className="text-electric-400 font-mono text-xs flex-shrink-0">
+                              {account.code}
+                            </span>
+                            <span className="text-gray-300 text-sm truncate group-hover:text-white transition-colors">
+                              {account.name}
+                            </span>
+                          </div>
+                          <span className={`text-xs font-semibold flex-shrink-0 ml-2 ${
+                            account.balance >= 0 ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            ${Math.abs(account.balance).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                        </motion.div>
+                      ))}
+                      {coaData.accounts.filter(acc => acc.type === type).length > 3 && (
+                        <div className="text-center">
+                          <span className="text-gray-500 text-xs">
+                            +{coaData.accounts.filter(acc => acc.type === type).length - 3} more accounts
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin w-6 h-6 border-2 border-electric-500 border-t-transparent rounded-full"></div>
+            </div>
+          )}
         </div>
 
         <div className="card-glass">

@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createWorker } from 'tesseract.js'
 import Lottie from 'react-lottie-player'
+import { FinancialDataService } from '../services/financialDataService'
+import { useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import ExpenseForm from './ExpenseForm'
 import AiSuggestionButton from './AiSuggestionButton'
@@ -36,7 +38,7 @@ const AiImportModal = ({ isOpen, onClose }: AiImportModalProps) => {
   const [customFields, setCustomFields] = useState<ExtractedField[]>([])
   const [isFieldAnimating, setIsFieldAnimating] = useState(false)
   const [extractedExpenseData, setExtractedExpenseData] = useState<{
-    vendor: string; amount: string; date: string; category: string; description: string
+    vendor: string; amount: string; date: string; category: string; description: string; paymentStatus: 'paid' | 'invoice'
   } | null>(null)
   const [extractedText, setExtractedText] = useState<string>('')
   const [stage, setStage] = useState<'picker' | 'form'>('picker')
@@ -44,6 +46,9 @@ const AiImportModal = ({ isOpen, onClose }: AiImportModalProps) => {
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [suggestionError, setSuggestionError] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Add QueryClient for cache invalidation
+  const queryClient = useQueryClient()
 
   // Default fields to extract
   const defaultFields = [
@@ -143,7 +148,26 @@ const AiImportModal = ({ isOpen, onClose }: AiImportModalProps) => {
 
       // Step 2: AI Processing with Gemini (primary fields)
       setOcrProgress(75)
-      const aiPrompt = `Extract the following information from this document text. Return the data in JSON format with the exact field names specified. Respond with ONLY valid JSON and nothing else. Keys must be: vendor, amount, date, description, category, invoiceNumber. Amount should be numeric, date in YYYY-MM-DD, category uppercase from [SOFTWARE, OFFICE_SUPPLIES, TRAVEL, MEALS, UTILITIES, RENT, PROFESSIONAL_SERVICES, MARKETING, EQUIPMENT, OTHER].
+      const aiPrompt = `Extract the following information from this document text. Return the data in JSON format with the exact field names specified. Respond with ONLY valid JSON and nothing else. 
+
+Required fields: vendor, amount, date, description, category, invoiceNumber, paymentStatus
+
+Field requirements:
+- vendor: Company/vendor name (clean, no extra text)
+- amount: Numeric value only (no currency symbols)
+- date: YYYY-MM-DD format
+- description: Brief description of the expense/purchase
+- category: Must be one of [SOFTWARE, OFFICE_SUPPLIES, TRAVEL, MEALS, UTILITIES, RENT, PROFESSIONAL_SERVICES, MARKETING, EQUIPMENT, INSURANCE, LEGAL, TRAINING, ENTERTAINMENT, TELECOMMUNICATIONS, PHONE, INTERNET, BANK_FEES, SALARIES, SUBSCRIPTIONS, SUPPLIES, INVENTORY, DEPOSITS, OTHER]
+- invoiceNumber: Invoice/receipt number if available
+- paymentStatus: Analyze the document to determine if this is "invoice" or "paid"
+
+PAYMENT STATUS DETECTION RULES:
+- CRITICAL: If document contains ANY payment completion indicators, classify as "paid" regardless of other content
+- Use "paid" if document contains: "Date Paid", "Amount Paid", "Paid", "Receipt", "Overpaid", "Credit Balance", "Balance Due: $-", "Payment received", "Transaction completed", "Thank you for payment", "Card ending in", "Payment processed", "Confirmation", "Paid in full", "Payment successful"
+- Use "invoice" ONLY if document contains invoice indicators AND NO payment indicators: "Invoice", "Bill To", "Due Date", "Net 30", "Payment Due", "Please remit", "Amount Due", "Balance Due" (positive amount), "Unpaid", "Outstanding", "Remit to", "Terms"
+- OVERRIDE RULE: Payment completion indicators (Date Paid, Amount Paid, Overpaid, etc.) always override invoice indicators
+- Example: A document with both "Invoice Date" and "Date Paid" should be classified as "paid"
+- If uncertain, default to "invoice"
 
 Document text: "${ocrText}"`
 
@@ -155,6 +179,7 @@ Document text: "${ocrText}"`
             description: string
             category: string
             invoiceNumber?: string
+            paymentStatus?: string
           }
         | null = null
 
@@ -180,12 +205,19 @@ Document text: "${ocrText}"`
       }))
 
       setExtractedFields(fields)
+      
+      // Use smart AI detection on OCR text for more accurate payment status
+      const smartDetectedStatus = detectPaymentStatus(ocrText)
+      console.log('🎯 Smart Detection Result:', smartDetectedStatus)
+      console.log('📄 OCR Text Sample:', ocrText.substring(0, 500))
+      
       setExtractedExpenseData({
         vendor: extractedData!.vendor || '',
         amount: extractedData!.amount || '',
         date: extractedData!.date || new Date().toISOString().split('T')[0],
         category: extractedData!.category || 'OTHER',
-        description: extractedData!.description || ''
+        description: extractedData!.description || '',
+        paymentStatus: smartDetectedStatus // Use smart detection instead of AI response
       })
 
       // Step 3: Fetch AI Suggestions (custom fields)
@@ -267,16 +299,23 @@ Document text: "${ocrText}"`
     }, {} as Record<string, string>)
 
     try {
-      await axios.post('/api/expenses', {
-        vendor: transactionData.vendor,
+      // Use our FinancialDataService instead of direct API call
+      const result = FinancialDataService.addExpenseTransaction({
+        vendor: transactionData.vendor || 'Unknown Vendor',
         category: transactionData.category || 'OTHER',
-        date: transactionData.date || new Date().toISOString(),
+        date: transactionData.date || new Date().toISOString().split('T')[0],
         amount: parseFloat(transactionData.amount) || 0,
-        description: transactionData.description,
+        description: transactionData.description || 'Imported via AI',
         receiptUrl: selectedFile?.name
       })
 
-      alert('Transaction saved successfully!')
+      // Invalidate all relevant queries to trigger real-time updates
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses'] })
+
+      // Show success message and close modal
+      alert(result.message)
       onClose()
     } catch (error) {
       console.error('Error saving transaction:', error)
@@ -299,6 +338,44 @@ Document text: "${ocrText}"`
       assets: [],
       layers: []
     }
+  }
+
+  // Smart AI Payment Status Detection
+  const detectPaymentStatus = (ocrText: string): 'paid' | 'invoice' => {
+    const text = ocrText.toLowerCase()
+    
+    // Strong payment completion indicators (prioritized)
+    const paidIndicators = [
+      'date paid', 'amount paid', 'overpaid', 'credit balance', 'balance due: $-',
+      'paid in full', 'payment successful', 'payment received', 'payment processed',
+      'transaction completed', 'thank you for payment', 'receipt', 'confirmation',
+      'card ending in', 'payment confirmation'
+    ]
+    
+    // Invoice/unpaid indicators (lower priority)
+    const invoiceIndicators = [
+      'amount due', 'balance due', 'payment due', 'please remit', 'net 30',
+      'unpaid', 'outstanding', 'due date', 'remit to', 'payment terms'
+    ]
+    
+    // Check for payment completion indicators first
+    const hasPaidIndicators = paidIndicators.some(indicator => text.includes(indicator))
+    const hasInvoiceIndicators = invoiceIndicators.some(indicator => text.includes(indicator))
+    
+    // Override logic: payment indicators always win
+    if (hasPaidIndicators) {
+      console.log('🎯 AI Detection: PAID - Found payment indicators:', paidIndicators.filter(i => text.includes(i)))
+      return 'paid'
+    }
+    
+    if (hasInvoiceIndicators && !hasPaidIndicators) {
+      console.log('📄 AI Detection: INVOICE - Found invoice indicators:', invoiceIndicators.filter(i => text.includes(i)))
+      return 'invoice'
+    }
+    
+    // Default fallback
+    console.log('❓ AI Detection: FALLBACK - No clear indicators, defaulting to invoice')
+    return 'invoice'
   }
 
   return (

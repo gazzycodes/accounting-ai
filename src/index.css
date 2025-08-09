@@ -109,6 +109,18 @@
     box-shadow: 0 8px 32px rgba(124, 58, 237, 0.4);
   }
 
+  .btn-red {
+    @apply px-4 py-2 rounded-lg font-medium text-white transition-all duration-300;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.2);
+  }
+
+  .btn-red:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(220, 38, 38, 0.4);
+  }
+
   .input-glass {
     @apply w-full px-3 py-2 rounded-lg border font-medium transition-all duration-300;
     background: rgba(255, 255, 255, 0.05);

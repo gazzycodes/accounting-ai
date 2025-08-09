@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react'
-import { motion, Reorder } from 'framer-motion'
+import React, { useState, useEffect, useRef } from 'react'
+import { motion, Reorder, AnimatePresence } from 'framer-motion'
+import { FinancialDataService } from '../services/financialDataService'
+import { useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import AiSuggestionButton from './AiSuggestionButton'
 
@@ -9,6 +11,7 @@ interface ExpenseData {
   date: string
   category: string
   description: string
+  paymentStatus: 'paid' | 'invoice' // New field to distinguish between paid expenses and unpaid invoices
 }
 
 type CustomFieldType = 'text' | 'number' | 'currency' | 'date' | 'dropdown'
@@ -50,13 +53,17 @@ const ExpenseForm = ({ initialData, onSave, onCancel, suggestionsContext, aiSugg
     amount: '',
     date: new Date().toISOString().split('T')[0],
     category: 'OTHER',
-    description: ''
+    description: '',
+    paymentStatus: 'invoice' // Default to 'invoice'
   })
   const [isAnimating, setIsAnimating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [fieldAnimations, setFieldAnimations] = useState<Record<string, boolean>>({})
   const [aiFilledFields, setAiFilledFields] = useState<Record<string, boolean>>({})
   const [userEditedFields, setUserEditedFields] = useState<Record<string, boolean>>({})
+
+  // Add QueryClient for cache invalidation
+  const queryClient = useQueryClient()
 
   // Custom fields and AI suggestions
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([])
@@ -92,7 +99,16 @@ const ExpenseForm = ({ initialData, onSave, onCancel, suggestionsContext, aiSugg
   // Animate field population when initial data is provided and fetch AI suggestions
   useEffect(() => {
     if (initialData) {
+      console.log('💼 ExpenseForm received initialData:', initialData)
       setIsAnimating(true)
+      
+      // Immediately set paymentStatus (no animation needed for this field)
+      if (initialData.paymentStatus) {
+        console.log('💰 Setting payment status to:', initialData.paymentStatus)
+        setFormData(prev => ({ ...prev, paymentStatus: initialData.paymentStatus }))
+        setAiFilledFields(prev => ({ ...prev, paymentStatus: true }))
+      }
+      
       const fields = ['vendor', 'amount', 'date', 'category', 'description']
       fields.forEach((field, index) => {
         setTimeout(() => {
@@ -192,14 +208,25 @@ const ExpenseForm = ({ initialData, onSave, onCancel, suggestionsContext, aiSugg
     setIsSaving(true)
     try {
       const customFieldsPayload = customFields.map(({ id, ...rest }) => rest)
-      await axios.post('/api/expenses', {
+      
+      // Use our FinancialDataService instead of direct API call
+      const result = FinancialDataService.addExpenseTransaction({
         vendor: formData.vendor,
         category: formData.category,
         date: formData.date,
         amount: parseFloat(formData.amount),
         description: formData.description,
-        customFields: customFieldsPayload
+        customFields: customFieldsPayload,
+        paymentStatus: formData.paymentStatus // Pass the payment status
       })
+      
+      // Invalidate all relevant queries to trigger real-time updates
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses'] })
+      
+      // Show success message
+      alert(result.message)
       setTimeout(() => { onSave() }, 500)
     } catch (error) {
       console.error('Error saving expense:', error)
@@ -277,6 +304,35 @@ const ExpenseForm = ({ initialData, onSave, onCancel, suggestionsContext, aiSugg
                     <option key={category} value={category} className="bg-gray-800 text-white">{formatCategoryLabel(category)}</option>
                   ))}
                 </motion.select>
+              </motion.div>
+              
+              {/* Payment Status */}
+              <motion.div className="space-y-2" initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.35, duration: 0.6, type: 'spring' as const, stiffness: 100 }}>
+                <label className="block text-sm font-medium text-gray-300">
+                  Payment Status
+                  <span className="ml-2 text-xs text-blue-400 bg-blue-500/20 px-2 py-1 rounded-full">🧾 Accounting</span>
+                  {(!userEditedFields.paymentStatus && aiFilledFields.paymentStatus) && (
+                    <span className="ml-2 text-xs text-electric-400 bg-electric-500/20 px-2 py-1 rounded-full">✨ AI Filled</span>
+                  )}
+                  {(initialData?.paymentStatus) && (
+                    <span className="ml-2 text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full">🤖 AI Detected</span>
+                  )}
+                </label>
+                <motion.select 
+                  value={formData.paymentStatus} 
+                  onChange={(e) => handleInputChange('paymentStatus', e.target.value as 'paid' | 'invoice')} 
+                  className={`w-full input-glass transition-all duration-300 ${fieldAnimations.paymentStatus ? 'border-electric-500 shadow-lg shadow-electric-500/20' : ''}`} 
+                  whileFocus={{ scale: 1.02 }}
+                >
+                  <option value="invoice" className="bg-gray-800 text-white">📄 Invoice Received (Unpaid)</option>
+                  <option value="paid" className="bg-gray-800 text-white">💰 Expense Paid (Cash Out)</option>
+                </motion.select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.paymentStatus === 'invoice' 
+                    ? '💡 Creates liability (Accounts Payable) - you owe money'
+                    : '💡 Reduces cash immediately - payment already made'
+                  }
+                </p>
               </motion.div>
             </div>
 

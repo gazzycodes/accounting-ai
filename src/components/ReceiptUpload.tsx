@@ -15,6 +15,7 @@ interface ExpenseData {
   date: string
   category: string
   description: string
+  paymentStatus: 'paid' | 'invoice' // New field to distinguish between paid expenses and unpaid invoices
 }
 
 const ReceiptUpload = ({ isOpen, onClose }: ReceiptUploadProps) => {
@@ -107,12 +108,23 @@ const ReceiptUpload = ({ isOpen, onClose }: ReceiptUploadProps) => {
 
 Receipt text: "${data.text}"
 
-Extract:
+Required fields: vendor, amount, date, category, description, paymentStatus
+
+Field requirements:
 - vendor: Company name (clean, no extra text)
 - amount: Total amount as number only (no currency symbols)
 - date: Date in YYYY-MM-DD format
-- category: Best category (SOFTWARE, OFFICE_SUPPLIES, TRAVEL, MEALS, UTILITIES, RENT, PROFESSIONAL_SERVICES, MARKETING, EQUIPMENT, OTHER)
+- category: Best category (SOFTWARE, OFFICE_SUPPLIES, TRAVEL, MEALS, UTILITIES, RENT, PROFESSIONAL_SERVICES, MARKETING, EQUIPMENT, INSURANCE, LEGAL, TRAINING, ENTERTAINMENT, TELECOMMUNICATIONS, PHONE, INTERNET, BANK_FEES, SALARIES, SUBSCRIPTIONS, SUPPLIES, INVENTORY, DEPOSITS, OTHER)
 - description: Brief description of purchase
+- paymentStatus: Analyze the document to determine if this is "invoice" or "paid"
+
+PAYMENT STATUS DETECTION RULES:
+- CRITICAL: If document contains ANY payment completion indicators, classify as "paid" regardless of other content
+- Use "paid" if document contains: "Date Paid", "Amount Paid", "Paid", "Receipt", "Overpaid", "Credit Balance", "Balance Due: $-", "Payment received", "Transaction completed", "Thank you for payment", "Card ending in", "Payment processed", "Confirmation", "Paid in full", "Payment successful"
+- Use "invoice" ONLY if document contains invoice indicators AND NO payment indicators: "Invoice", "Bill To", "Due Date", "Net 30", "Payment Due", "Please remit", "Amount Due", "Balance Due" (positive amount), "Unpaid", "Outstanding", "Remit to", "Terms"
+- OVERRIDE RULE: Payment completion indicators (Date Paid, Amount Paid, Overpaid, etc.) always override invoice indicators
+- Example: A document with both "Invoice Date" and "Date Paid" should be classified as "paid"
+- If uncertain, default to "paid" (receipts are usually for completed transactions)
 
 Return only valid JSON with these exact field names. If unclear, make reasonable assumptions.`
 
@@ -129,12 +141,17 @@ Return only valid JSON with these exact field names. If unclear, make reasonable
         const jsonMatch = aiResponse.data.content.match(/\{[\s\S]*\}/)
         if (jsonMatch) {
           const extractedExpense = JSON.parse(jsonMatch[0])
+          
+          // Use smart AI detection on OCR text for more accurate payment status
+          const smartDetectedStatus = detectPaymentStatus(data.text)
+          
           setExtractedData({
             vendor: extractedExpense.vendor || '',
             amount: String(extractedExpense.amount || ''),
             date: extractedExpense.date || new Date().toISOString().split('T')[0],
             category: extractedExpense.category || 'OTHER',
-            description: extractedExpense.description || ''
+            description: extractedExpense.description || '',
+            paymentStatus: smartDetectedStatus // Use smart detection instead of AI response
           })
           setShowExpenseForm(true)
         } else {
@@ -148,7 +165,8 @@ Return only valid JSON with these exact field names. If unclear, make reasonable
           amount: '',
           date: new Date().toISOString().split('T')[0],
           category: 'OTHER',
-          description: 'Receipt processed'
+          description: 'Receipt processed',
+          paymentStatus: 'paid' // Receipts are typically for paid transactions
         })
         setShowExpenseForm(true)
       }
@@ -181,6 +199,44 @@ Return only valid JSON with these exact field names. If unclear, make reasonable
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl)
     }
+  }
+
+  // Smart AI Payment Status Detection
+  const detectPaymentStatus = (ocrText: string): 'paid' | 'invoice' => {
+    const text = ocrText.toLowerCase()
+    
+    // Strong payment completion indicators (prioritized)
+    const paidIndicators = [
+      'date paid', 'amount paid', 'overpaid', 'credit balance', 'balance due: $-',
+      'paid in full', 'payment successful', 'payment received', 'payment processed',
+      'transaction completed', 'thank you for payment', 'receipt', 'confirmation',
+      'card ending in', 'payment confirmation'
+    ]
+    
+    // Invoice/unpaid indicators (lower priority)
+    const invoiceIndicators = [
+      'amount due', 'balance due', 'payment due', 'please remit', 'net 30',
+      'unpaid', 'outstanding', 'due date', 'remit to', 'payment terms'
+    ]
+    
+    // Check for payment completion indicators first
+    const hasPaidIndicators = paidIndicators.some(indicator => text.includes(indicator))
+    const hasInvoiceIndicators = invoiceIndicators.some(indicator => text.includes(indicator))
+    
+    // Override logic: payment indicators always win
+    if (hasPaidIndicators) {
+      console.log('🎯 AI Detection: PAID - Found payment indicators:', paidIndicators.filter(i => text.includes(i)))
+      return 'paid'
+    }
+    
+    if (hasInvoiceIndicators && !hasPaidIndicators) {
+      console.log('📄 AI Detection: INVOICE - Found invoice indicators:', invoiceIndicators.filter(i => text.includes(i)))
+      return 'invoice'
+    }
+    
+    // For receipts, default to paid since they're typically for completed transactions
+    console.log('📄 AI Detection: RECEIPT DEFAULT - Defaulting to paid for receipt')
+    return 'paid'
   }
 
   return (

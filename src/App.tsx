@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useQueryClient } from '@tanstack/react-query'
+import { FinancialDataService } from './services/financialDataService'
 import Dashboard from './components/Dashboard'
 import ChatDrawer from './components/ChatDrawer'
 import AiImportModal from './components/AiImportModal'
@@ -15,6 +17,24 @@ function App() {
 
   // Preload animation
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Query client for cache invalidation
+  const queryClient = useQueryClient()
+
+  // Reset data function
+  const handleResetData = () => {
+    const confirmed = window.confirm('🗑️ Are you sure you want to reset all data? This will clear all transactions and restore initial demo data.')
+    if (confirmed) {
+      const result = FinancialDataService.resetData()
+      
+      // Invalidate all queries to trigger UI updates
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] })
+      
+      alert(result.message)
+    }
+  }
 
   useEffect(() => {
     // Simulate app loading
@@ -135,6 +155,15 @@ function App() {
               whileTap={{ scale: 0.95 }}
             >
               AI Import
+            </motion.button>
+
+            <motion.button
+              onClick={handleResetData}
+              className="btn-red"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Reset Data
             </motion.button>
           </nav>
         </div>
