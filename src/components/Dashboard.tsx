@@ -38,9 +38,13 @@ interface ChartOfAccountsData {
 
 interface DashboardProps {
   onViewReports?: () => void
+  onAddExpense?: () => void
+  onAiImport?: () => void
+  onCreateInvoice?: () => void
+  onSetupRecurring?: () => void
 }
 
-const Dashboard = ({ onViewReports }: DashboardProps) => {
+const Dashboard = ({ onViewReports, onAddExpense, onAiImport, onCreateInvoice, onSetupRecurring }: DashboardProps) => {
   const [aiSummary, setAiSummary] = useState('')
   const [isLoadingSummary, setIsLoadingSummary] = useState(false)
 
@@ -60,6 +64,8 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
       return FinancialDataService.getChartOfAccountsData()
     },
   })
+
+
 
   // Generate AI summary when data loads
   useEffect(() => {
@@ -179,14 +185,14 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
           </div>
         ) : (
           <div>
-          <motion.p
+        <motion.p
               className="text-gray-300 text-lg leading-relaxed mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-          >
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.8 }}
+        >
             {aiSummary}
-          </motion.p>
+        </motion.p>
             
             {/* Dynamic Insights Panel */}
             {(() => {
@@ -195,7 +201,7 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
                 return (
                   <div className="space-y-3 mt-4">
                     {allInsights.slice(0, 3).map((insight, index) => (
-                      <motion.div
+        <motion.div
                         key={insight.id}
                         className={`p-3 rounded-lg border-l-4 ${
                           insight.urgency === 'high' 
@@ -235,8 +241,8 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
               }
               return null
             })()}
-          </div>
-        )}
+                  </div>
+                )}
       </motion.div>
 
       {/* KPI Cards */}
@@ -266,8 +272,8 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
               <span className="text-green-400 text-sm font-medium">
                 {metric.change}
               </span>
-            </div>
-            
+              </div>
+              
             <h3 className="text-gray-400 text-sm font-medium mb-2">
               {metric.title}
             </h3>
@@ -307,9 +313,139 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
         ))}
       </div>
 
-      {/* Recent Activity */}
+      {/* Quick Actions */}
       <motion.div
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        className="card-glass mb-8"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.6 }}
+      >
+        <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
+          <span className="mr-2">⚡</span>
+          Quick Actions
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Add Expense */}
+          <motion.button
+            onClick={onAddExpense}
+            className="p-6 bg-gradient-to-br from-slate-800/50 to-slate-700/50 hover:from-slate-700/60 hover:to-slate-600/60 border border-slate-600/30 hover:border-slate-500/50 rounded-xl transition-all duration-300 text-left group"
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <span className="text-2xl">📝</span>
+              </div>
+              <div className="text-slate-400 group-hover:text-slate-300 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+            <h4 className="text-white font-semibold mb-2 group-hover:text-blue-300 transition-colors">
+              Add Expense
+            </h4>
+            <p className="text-slate-400 text-sm group-hover:text-slate-300 transition-colors">
+              Manually record a new expense transaction
+            </p>
+          </motion.button>
+
+          {/* AI Import */}
+          <motion.button
+            onClick={onAiImport}
+            className="p-6 bg-gradient-to-br from-violet-600/20 to-cyan-500/20 hover:from-violet-600/30 hover:to-cyan-500/30 border border-violet-400/30 hover:border-violet-400/50 rounded-xl transition-all duration-300 text-left group relative overflow-hidden"
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-cyan-400/5 group-hover:from-violet-500/10 group-hover:to-cyan-400/10 transition-all duration-300" />
+            
+            <div className="relative">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                  <span className="text-2xl">🤖</span>
+                    </div>
+                <div className="text-violet-400 group-hover:text-violet-300 transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+              <h4 className="text-white font-semibold mb-2 group-hover:text-violet-300 transition-colors">
+                AI Import
+              </h4>
+              <p className="text-slate-400 text-sm group-hover:text-slate-300 transition-colors">
+                Read any bill in seconds with AI
+              </p>
+            </div>
+          </motion.button>
+
+          {/* Create Invoice */}
+          <motion.button
+            onClick={onCreateInvoice}
+            className="p-6 bg-gradient-to-br from-emerald-600/20 to-teal-500/20 hover:from-emerald-600/30 hover:to-teal-500/30 border border-emerald-400/30 hover:border-emerald-400/50 rounded-xl transition-all duration-300 text-left group relative overflow-hidden"
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-teal-400/5 group-hover:from-emerald-500/10 group-hover:to-teal-400/10 transition-all duration-300" />
+            
+            <div className="relative">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                  <span className="text-2xl">📄</span>
+                </div>
+                <div className="text-emerald-400 group-hover:text-emerald-300 transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+              <h4 className="text-white font-semibold mb-2 group-hover:text-emerald-300 transition-colors">
+                Create Invoice
+              </h4>
+              <p className="text-slate-400 text-sm group-hover:text-slate-300 transition-colors">
+                AI-powered invoice generation
+              </p>
+            </div>
+          </motion.button>
+
+          {/* Set Up Recurring */}
+          <motion.button
+            onClick={onSetupRecurring}
+            className="p-6 bg-gradient-to-br from-purple-600/20 to-pink-500/20 hover:from-purple-600/30 hover:to-pink-500/30 border border-purple-400/30 hover:border-purple-400/50 rounded-xl transition-all duration-300 text-left group relative overflow-hidden"
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-400/5 group-hover:from-purple-500/10 group-hover:to-pink-400/10 transition-all duration-300" />
+            
+            <div className="relative">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                  <span className="text-2xl">🔄</span>
+                </div>
+                <div className="text-purple-400 group-hover:text-purple-300 transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+              <h4 className="text-white font-semibold mb-2 group-hover:text-purple-300 transition-colors">
+                Set Up Recurring
+              </h4>
+              <p className="text-slate-400 text-sm group-hover:text-slate-300 transition-colors">
+                Auto-create subscriptions & rent
+              </p>
+            </div>
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Financial Overview */}
+      <motion.div
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8, duration: 0.6 }}
@@ -449,50 +585,10 @@ const Dashboard = ({ onViewReports }: DashboardProps) => {
           )}
         </div>
 
-        <div className="card-glass">
-          <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
-            <span className="mr-2">🎯</span>
-            Quick Actions
-          </h3>
-          <div className="space-y-3">
-            <motion.button
-              className="w-full btn-glass text-left"
-              whileHover={{ x: 5 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onViewReports}
-            >
-              <span className="mr-2">📑</span>
-              View Reports
-            </motion.button>
-            <motion.button
-              className="w-full btn-glass text-left"
-              whileHover={{ x: 5 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="mr-2">📄</span>
-              Generate Monthly Report
-            </motion.button>
-            <motion.button
-              className="w-full btn-glass text-left"
-              whileHover={{ x: 5 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="mr-2">💳</span>
-              Connect Bank Account
-            </motion.button>
-            <motion.button
-              className="w-full btn-glass text-left"
-              whileHover={{ x: 5 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="mr-2">📧</span>
-              Send Invoice
-            </motion.button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  )
+
+        </motion.div>
+      </div>
+    )
 }
 
 export default Dashboard 

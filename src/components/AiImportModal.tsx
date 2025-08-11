@@ -306,7 +306,8 @@ Document text: "${ocrText}"`
         date: transactionData.date || new Date().toISOString().split('T')[0],
         amount: parseFloat(transactionData.amount) || 0,
         description: transactionData.description || 'Imported via AI',
-        receiptUrl: selectedFile?.name
+        receiptUrl: selectedFile?.name,
+        paymentStatus: extractedExpenseData?.paymentStatus || 'paid' // 🔥 CRITICAL FIX: Use AI-detected payment status
       })
 
       // Invalidate all relevant queries to trigger real-time updates

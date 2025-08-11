@@ -59,12 +59,29 @@ export interface AIInsight {
   timestamp: string
 }
 
+// Recurring Transaction
+export interface RecurringTransaction {
+  id: string
+  vendor: string
+  amount: number
+  category: string
+  description: string
+  frequency: 'weekly' | 'monthly' | 'quarterly'
+  nextDate: string
+  lastProcessed?: string
+  isActive: boolean
+  createdDate: string
+  dayOfMonth?: number
+  dayOfWeek?: number
+}
+
 // Store State
 interface MockDataState {
   accounts: Account[]
   transactions: Transaction[]
   totals: FinancialTotals
   aiInsights: AIInsight[]
+  recurringTransactions: RecurringTransaction[]
   
   // Actions
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void
@@ -79,6 +96,13 @@ interface MockDataState {
   createNewAccount: (name: string, type: AccountType) => Account
   getNextAccountCode: (type: AccountType) => string
   findOrCreateAccountForCategory: (categoryName: string) => { debitAccount: string, creditAccount: string }
+  
+  // Recurring transaction methods
+  addRecurringTransaction: (recurring: Omit<RecurringTransaction, 'id' | 'createdDate'>) => void
+  getRecurringTransactions: () => RecurringTransaction[]
+  updateRecurringTransaction: (id: string, updates: Partial<RecurringTransaction>) => void
+  deleteRecurringTransaction: (id: string) => void
+  processRecurringTransactions: () => void
 }
 
 // Category to Account Mapping - Enhanced with comprehensive business categories
@@ -234,6 +258,7 @@ export const useMockDataStore = create<MockDataState>()(
       transactions: [],
       totals: calculateInitialTotals(),
       aiInsights: INITIAL_AI_INSIGHTS,
+      recurringTransactions: [],
 
       // Add Transaction
       addTransaction: (transaction: Omit<Transaction, 'id'>) => {
@@ -304,30 +329,21 @@ export const useMockDataStore = create<MockDataState>()(
           const assets = state.accounts.filter(a => a.type === 'ASSET').reduce((sum, a) => sum + a.balance, 0)
           const liabilities = state.accounts.filter(a => a.type === 'LIABILITY').reduce((sum, a) => sum + a.balance, 0)
           
-          // CORRECTED: Auto-close expenses to Retained Earnings for Balance Sheet balancing
-          // This simulates the period-end closing process
+          // Calculate net income for display purposes only (don't modify accounts)
           const netIncome = revenue - expenses
           const retainedEarningsAccount = state.accounts.find(a => a.code === '3200')
           const ownerEquityAccount = state.accounts.find(a => a.code === '3000')
           
-          // Update Retained Earnings with net income (revenue - expenses)
-          const updatedAccounts = state.accounts.map(account => {
-            if (account.code === '3200') { // Retained Earnings
-              return { ...account, balance: netIncome }
-            }
-            return account
-          })
-          
-          // Calculate total equity including updated retained earnings
+          // DON'T modify account balances - let transactions handle that
+          // Calculate total equity from actual account balances
           const totalOwnerEquity = ownerEquityAccount?.balance || 0
-          const totalRetainedEarnings = netIncome
+          const totalRetainedEarnings = retainedEarningsAccount?.balance || 0
           const totalEquity = totalOwnerEquity + totalRetainedEarnings
           
           const cogs = state.accounts.find(a => a.code === '5010')?.balance || 0
 
           return {
             ...state,
-            accounts: updatedAccounts,
             totals: {
               totalRevenue: revenue,
               totalExpenses: expenses,
@@ -571,7 +587,8 @@ export const useMockDataStore = create<MockDataState>()(
           accounts: INITIAL_ACCOUNTS,
           transactions: [],
           totals: calculateInitialTotals(),
-          aiInsights: INITIAL_AI_INSIGHTS
+          aiInsights: INITIAL_AI_INSIGHTS,
+          recurringTransactions: []
         })
       },
       
@@ -651,6 +668,104 @@ export const useMockDataStore = create<MockDataState>()(
         }))
         
         return { debitAccount: newAccountCode, creditAccount: '1010' } // Always credit Cash
+      },
+
+      // Recurring Transaction Methods
+      addRecurringTransaction: (recurring: Omit<RecurringTransaction, 'id' | 'createdDate'>) => {
+        const newRecurring: RecurringTransaction = {
+          ...recurring,
+          id: `REC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          createdDate: new Date().toISOString()
+        }
+
+        set((state: MockDataState) => ({
+          ...state,
+          recurringTransactions: [...state.recurringTransactions, newRecurring]
+        }))
+      },
+
+      getRecurringTransactions: () => {
+        return get().recurringTransactions
+      },
+
+      updateRecurringTransaction: (id: string, updates: Partial<RecurringTransaction>) => {
+        set((state: MockDataState) => ({
+          ...state,
+          recurringTransactions: state.recurringTransactions.map(recurring =>
+            recurring.id === id ? { ...recurring, ...updates } : recurring
+          )
+        }))
+      },
+
+      deleteRecurringTransaction: (id: string) => {
+        set((state: MockDataState) => ({
+          ...state,
+          recurringTransactions: state.recurringTransactions.filter(recurring => recurring.id !== id)
+        }))
+      },
+
+      processRecurringTransactions: () => {
+        const state = get()
+        const today = new Date()
+        const todayString = today.toISOString().split('T')[0]
+
+        state.recurringTransactions.forEach(recurring => {
+          if (!recurring.isActive) return
+
+          const nextDate = new Date(recurring.nextDate)
+          if (nextDate <= today) {
+            // Create the recurring transaction
+            const { addTransaction, findOrCreateAccountForCategory } = get()
+            
+            // Get account mapping for the category
+            const mapping = findOrCreateAccountForCategory(recurring.category)
+            
+            const transaction = {
+              date: todayString,
+              description: `${recurring.description} (Auto-recurring)`,
+              reference: `REC-${recurring.id}`,
+              amount: recurring.amount,
+              vendor: recurring.vendor,
+              category: recurring.category,
+              entries: [
+                {
+                  accountCode: mapping.debitAccount,
+                  type: 'debit' as const,
+                  amount: recurring.amount,
+                  description: `${recurring.category} expense - ${recurring.description}`
+                },
+                {
+                  accountCode: mapping.creditAccount,
+                  type: 'credit' as const,
+                  amount: recurring.amount,
+                  description: `Auto payment to ${recurring.vendor}`
+                }
+              ]
+            }
+            
+            addTransaction(transaction)
+
+            // Calculate next date
+            const nextDateCalc = new Date(recurring.nextDate)
+            switch (recurring.frequency) {
+              case 'weekly':
+                nextDateCalc.setDate(nextDateCalc.getDate() + 7)
+                break
+              case 'monthly':
+                nextDateCalc.setMonth(nextDateCalc.getMonth() + 1)
+                break
+              case 'quarterly':
+                nextDateCalc.setMonth(nextDateCalc.getMonth() + 3)
+                break
+            }
+
+            // Update the recurring transaction
+            get().updateRecurringTransaction(recurring.id, {
+              nextDate: nextDateCalc.toISOString().split('T')[0],
+              lastProcessed: todayString
+            })
+          }
+        })
       }
     }),
     {

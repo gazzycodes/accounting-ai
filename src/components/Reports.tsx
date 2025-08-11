@@ -759,6 +759,72 @@ export default function Reports() {
   const [aiSuggestionLoading, setAiSuggestionLoading] = useState(false)
   const [currentInsightIndex, setCurrentInsightIndex] = useState(0)
   const [showAiInsights, setShowAiInsights] = useState(false)
+  
+  // Collapsible account groups state
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
+    'ASSET': false,
+    'LIABILITY': false,
+    'EQUITY': false,
+    'REVENUE': false,
+    'EXPENSE': false
+  })
+  
+  // Delete account state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [accountToDelete, setAccountToDelete] = useState<ChartOfAccountsItem | null>(null)
+
+  // Toggle group collapse state
+  const toggleGroup = (groupType: string) => {
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [groupType]: !prev[groupType]
+    }))
+  }
+
+  // Get account connections and dependencies
+  const getAccountConnections = (account: ChartOfAccountsItem) => {
+    const transactions = getMockTransactions(account.code, account.name)
+    const hasTransactions = transactions.length > 0
+    const totalTransactions = transactions.length
+    const recentTransactions = transactions.slice(0, 3)
+    
+    // Mock some additional connections for demo
+    const connections = {
+      hasTransactions,
+      totalTransactions,
+      recentTransactions,
+      hasRecurringTransactions: account.name.toLowerCase().includes('subscription') || account.name.toLowerCase().includes('rent'),
+      isSystemAccount: ['1010', '2010', '3010'].includes(account.code), // Cash, Accounts Payable, Owner's Equity
+      relatedAccounts: account.type === 'ASSET' && account.name.includes('Cash') ? ['Accounts Receivable', 'Customer Deposits'] : [],
+      hasOpenInvoices: account.type === 'LIABILITY' && Math.random() > 0.5,
+      lastActivity: hasTransactions ? new Date(Math.max(...transactions.map(t => new Date(t.date).getTime()))) : null
+    }
+    
+    return connections
+  }
+
+  // Handle delete account
+  const handleDeleteAccount = (account: ChartOfAccountsItem) => {
+    setAccountToDelete(account)
+    setShowDeleteModal(true)
+  }
+
+  // Confirm delete account
+  const confirmDeleteAccount = () => {
+    if (!accountToDelete) return
+    
+    // Here you would call your delete API
+    // For now, just show success message
+    alert(`Account "${accountToDelete.name}" (${accountToDelete.code}) has been deleted successfully!`)
+    
+    // Close modals
+    setShowDeleteModal(false)
+    setSelectedAccount(null)
+    setAccountToDelete(null)
+    
+    // Invalidate queries to refresh data
+    // queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] })
+  }
 
   // Subscribe to store changes for real-time updates
   const storeData = useMockDataStore()
@@ -1851,7 +1917,7 @@ export default function Reports() {
               </p>
             </motion.div>
 
-            <div className="space-y-8">
+            <div className="space-y-6" style={{ contain: 'layout', position: 'relative' }}>
               {typeOrder.map((type, typeIndex) => {
                 const accounts = accountsByType[type] || []
                 if (accounts.length === 0) return null
@@ -1863,75 +1929,144 @@ export default function Reports() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: typeIndex * 0.1, duration: 0.5 }}
+                    layout
+                    style={{
+                      contain: 'layout style',
+                      position: 'relative'
+                    }}
                   >
-                    <h4 className="text-xl font-bold text-white mb-4">
-                      {typeLabels[type as keyof typeof typeLabels]}
-                    </h4>
+                    {/* Collapsible Header */}
+                    <motion.button
+                      onClick={() => toggleGroup(type)}
+                      className={`flex items-center justify-between w-full group hover:bg-white/5 p-2 rounded-lg transition-all duration-200 ${
+                        collapsedGroups[type] ? 'mb-0' : 'mb-4'
+                      }`}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                      <h4 className="text-xl font-bold text-white group-hover:text-electric-400 transition-colors">
+                        {typeLabels[type as keyof typeof typeLabels]}
+                      </h4>
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
+                          {accounts.length} account{accounts.length !== 1 ? 's' : ''}
+                        </span>
+                        <motion.div
+                          animate={{ rotate: collapsedGroups[type] ? -90 : 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="text-gray-400 group-hover:text-electric-400 transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </motion.div>
+                      </div>
+                    </motion.button>
                     
-                    <div className="overflow-hidden rounded-xl border border-white/10">
-                      <table className="w-full">
-                        <thead className="bg-white/5">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                              Account Code
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                              Account Name
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
-                              Current Balance
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {accounts.map((account, index) => (
-                            <motion.tr
-                              key={account.code}
-                              className="hover:bg-white/5 transition-colors group cursor-pointer"
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: (typeIndex * 0.1) + (index * 0.05), duration: 0.3 }}
-                              onClick={() => setSelectedAccount(account)}
-                              whileHover={{ x: 5 }}
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-electric-400 font-mono text-sm">
-                                  {account.code}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-white font-medium group-hover:text-electric-300 transition-colors">
-                                  {account.name}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right">
-                                <span className={`font-bold ${
-                                  account.balance >= 0 ? 'text-green-400' : 'text-red-400'
-                                }`}>
-                                  {account.balance >= 0 ? '' : '-'}${Math.abs(account.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <motion.button
-                                  className="text-electric-400 hover:text-electric-300 text-sm font-medium opacity-0 group-hover:opacity-100 transition-all"
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedAccount(account)
-                                  }}
-                                >
-                                  View Details →
-                                </motion.button>
-                              </td>
-                            </motion.tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    {/* Collapsible Table Content */}
+                    <AnimatePresence mode="wait" initial={false}>
+                      {!collapsedGroups[type] && (
+                        <motion.div
+                          initial={{ opacity: 0, scaleY: 0 }}
+                          animate={{ 
+                            opacity: 1, 
+                            scaleY: 1,
+                            transition: {
+                              scaleY: { duration: 0.3, ease: [0.23, 1, 0.320, 1] },
+                              opacity: { duration: 0.2, delay: 0.05 }
+                            }
+                          }}
+                          exit={{ 
+                            opacity: 0, 
+                            scaleY: 0,
+                            transition: {
+                              scaleY: { duration: 0.25, ease: [0.23, 1, 0.320, 1] },
+                              opacity: { duration: 0.15 }
+                            }
+                          }}
+                          layout
+                          className="overflow-hidden"
+                          style={{ 
+                            transformOrigin: 'top',
+                            willChange: 'transform, opacity'
+                          }}
+                        >
+                          <div className="overflow-hidden rounded-xl border border-white/10" style={{ position: 'relative' }}>
+                            <table className="w-full" style={{ tableLayout: 'fixed', width: '100%' }}>
+                              <thead className="bg-white/5">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                    Account Code
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                    Account Name
+                                  </th>
+                                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                    Current Balance
+                                  </th>
+                                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                    Actions
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {accounts.map((account, index) => (
+                                  <motion.tr
+                                    key={account.code}
+                                    className="hover:bg-white/5 transition-colors group cursor-pointer"
+                                    initial={{ opacity: 0, x: -20, scale: 0.98 }}
+                                    animate={{ 
+                                      opacity: 1, 
+                                      x: 0, 
+                                      scale: 1,
+                                      transition: {
+                                        delay: (typeIndex * 0.1) + (index * 0.03), 
+                                        duration: 0.25,
+                                        ease: [0.23, 1, 0.320, 1]
+                                      }
+                                    }}
+                                    onClick={() => setSelectedAccount(account)}
+                                    whileHover={{ x: 5, scale: 1.02 }}
+                                    style={{ position: 'relative' }}
+                                  >
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <span className="text-electric-400 font-mono text-sm">
+                                        {account.code}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <span className="text-white font-medium group-hover:text-electric-300 transition-colors">
+                                        {account.name}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                      <span className={`font-bold ${
+                                        account.balance >= 0 ? 'text-green-400' : 'text-red-400'
+                                      }`}>
+                                        {account.balance >= 0 ? '' : '-'}${Math.abs(account.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                      <motion.button
+                                        className="text-electric-400 hover:text-electric-300 text-sm font-medium opacity-0 group-hover:opacity-100 transition-all"
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setSelectedAccount(account)
+                                        }}
+                                      >
+                                        View Details →
+                                      </motion.button>
+                                    </td>
+                                  </motion.tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 )
               })}
@@ -2223,6 +2358,39 @@ export default function Reports() {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Modal Actions */}
+                    <div className="border-t border-white/10 p-6 bg-white/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <motion.button
+                            onClick={() => setSelectedAccount(null)}
+                            className="px-4 py-2 bg-slate-700/50 hover:bg-slate-600/60 text-white rounded-lg transition-colors"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            Close
+                          </motion.button>
+                          <motion.button
+                            className="px-4 py-2 bg-electric-600/80 hover:bg-electric-500 text-white rounded-lg transition-colors"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            Edit Account
+                          </motion.button>
+                        </div>
+                        
+                        <motion.button
+                          onClick={() => handleDeleteAccount(selectedAccount)}
+                          className="px-4 py-2 bg-red-600/80 hover:bg-red-500 text-white rounded-lg transition-colors flex items-center space-x-2"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <span>🗑️</span>
+                          <span>Delete Account</span>
+                        </motion.button>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               </motion.div>
@@ -2367,6 +2535,251 @@ export default function Reports() {
                           Create Account
                         </motion.button>
                       </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* Delete Account Confirmation Modal */}
+          <AnimatePresence>
+            {showDeleteModal && accountToDelete && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowDeleteModal(false)}
+                >
+                  {/* Modal */}
+                  <motion.div
+                    className="glass p-6 rounded-2xl border border-red-500/30 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
+                          <span className="text-2xl">⚠️</span>
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-white">Delete Account</h3>
+                          <p className="text-red-300 text-sm">This action cannot be undone</p>
+                        </div>
+                      </div>
+                      <motion.button
+                        onClick={() => setShowDeleteModal(false)}
+                        className="text-gray-400 hover:text-white transition-colors"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        ✕
+                      </motion.button>
+                    </div>
+
+                    {/* Account Info */}
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <span className="text-electric-400 font-mono text-lg">{accountToDelete.code}</span>
+                        <span className="text-white font-semibold text-lg">{accountToDelete.name}</span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          accountToDelete.type === 'ASSET' ? 'bg-blue-500/20 text-blue-300' :
+                          accountToDelete.type === 'LIABILITY' ? 'bg-red-500/20 text-red-300' :
+                          accountToDelete.type === 'EQUITY' ? 'bg-purple-500/20 text-purple-300' :
+                          accountToDelete.type === 'REVENUE' ? 'bg-green-500/20 text-green-300' :
+                          'bg-orange-500/20 text-orange-300'
+                        }`}>
+                          {accountToDelete.type}
+                        </span>
+                      </div>
+                      <div className="text-gray-300 text-sm">
+                        Current Balance: <span className={`font-bold ${
+                          accountToDelete.balance >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          ${Math.abs(accountToDelete.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Connection Analysis */}
+                    {(() => {
+                      const connections = getAccountConnections(accountToDelete)
+                      const hasConnections = connections.hasTransactions || connections.hasRecurringTransactions || 
+                                           connections.isSystemAccount || connections.relatedAccounts.length > 0
+
+                      return (
+                        <div className="space-y-4 mb-6">
+                          <h4 className="text-white font-semibold flex items-center">
+                            <span className="mr-2">🔍</span>
+                            Account Impact Analysis
+                          </h4>
+                          
+                          {/* Warnings */}
+                          {hasConnections && (
+                            <div className="space-y-3">
+                              {connections.hasTransactions && (
+                                <motion.div
+                                  className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4"
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.1 }}
+                                >
+                                  <div className="flex items-start space-x-3">
+                                    <span className="text-yellow-400 text-lg">⚠️</span>
+                                    <div>
+                                      <div className="text-yellow-300 font-medium">Transaction History</div>
+                                      <div className="text-gray-300 text-sm mt-1">
+                                        This account has <strong>{connections.totalTransactions} transaction(s)</strong>
+                                        {connections.lastActivity && (
+                                          <span> (last activity: {connections.lastActivity.toLocaleDateString()})</span>
+                                        )}
+                                      </div>
+                                      {connections.recentTransactions.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                          <div className="text-xs text-gray-400">Recent transactions:</div>
+                                          {connections.recentTransactions.map((tx, index) => (
+                                            <div key={index} className="text-xs text-gray-300 ml-2">
+                                              • {new Date(tx.date).toLocaleDateString()} - {tx.description} (${tx.amount.toFixed(2)})
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+
+                              {connections.hasRecurringTransactions && (
+                                <motion.div
+                                  className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4"
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.2 }}
+                                >
+                                  <div className="flex items-start space-x-3">
+                                    <span className="text-purple-400 text-lg">🔄</span>
+                                    <div>
+                                      <div className="text-purple-300 font-medium">Recurring Transactions</div>
+                                      <div className="text-gray-300 text-sm mt-1">
+                                        This account appears to have recurring transactions (subscriptions/rent)
+                                      </div>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+
+                              {connections.isSystemAccount && (
+                                <motion.div
+                                  className="bg-red-500/10 border border-red-500/30 rounded-lg p-4"
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.3 }}
+                                >
+                                  <div className="flex items-start space-x-3">
+                                    <span className="text-red-400 text-lg">🚨</span>
+                                    <div>
+                                      <div className="text-red-300 font-medium">System Account</div>
+                                      <div className="text-gray-300 text-sm mt-1">
+                                        This is a critical system account. Deleting it may affect core functionality.
+                                      </div>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+
+                              {connections.relatedAccounts.length > 0 && (
+                                <motion.div
+                                  className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4"
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.4 }}
+                                >
+                                  <div className="flex items-start space-x-3">
+                                    <span className="text-blue-400 text-lg">🔗</span>
+                                    <div>
+                                      <div className="text-blue-300 font-medium">Related Accounts</div>
+                                      <div className="text-gray-300 text-sm mt-1">
+                                        Connected to: {connections.relatedAccounts.join(', ')}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          )}
+
+                          {!hasConnections && (
+                            <motion.div
+                              className="bg-green-500/10 border border-green-500/30 rounded-lg p-4"
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: 0.1 }}
+                            >
+                              <div className="flex items-start space-x-3">
+                                <span className="text-green-400 text-lg">✅</span>
+                                <div>
+                                  <div className="text-green-300 font-medium">Safe to Delete</div>
+                                  <div className="text-gray-300 text-sm mt-1">
+                                    This account has no transactions or connections. It can be safely deleted.
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                    {/* Consequences */}
+                    <div className="bg-slate-800/50 rounded-xl p-4 mb-6">
+                      <h5 className="text-white font-medium mb-3">What happens when you delete this account:</h5>
+                      <ul className="space-y-2 text-sm text-gray-300">
+                        <li className="flex items-start space-x-2">
+                          <span className="text-red-400 mt-0.5">•</span>
+                          <span>The account will be permanently removed from your Chart of Accounts</span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <span className="text-red-400 mt-0.5">•</span>
+                          <span>All transaction history will be preserved but marked as "Deleted Account"</span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <span className="text-red-400 mt-0.5">•</span>
+                          <span>Financial reports will show historical data but account won't appear in new transactions</span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <span className="text-red-400 mt-0.5">•</span>
+                          <span>Any recurring transactions using this account will be paused</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                      <motion.button
+                        onClick={() => setShowDeleteModal(false)}
+                        className="px-6 py-2 bg-slate-700/50 hover:bg-slate-600/60 text-white rounded-lg transition-colors"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        Cancel
+                      </motion.button>
+                      
+                      <motion.button
+                        onClick={confirmDeleteAccount}
+                        className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors flex items-center space-x-2"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <span>🗑️</span>
+                        <span>Yes, Delete Account</span>
+                      </motion.button>
                     </div>
                   </motion.div>
                 </motion.div>

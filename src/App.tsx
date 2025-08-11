@@ -5,7 +5,10 @@ import { FinancialDataService } from './services/financialDataService'
 import Dashboard from './components/Dashboard'
 import ChatDrawer from './components/ChatDrawer'
 import AiImportModal from './components/AiImportModal'
+import AiInvoiceModal from './components/AiInvoiceModal'
 import ReceiptUpload from './components/ReceiptUpload'
+import RecurringTransactionModal from './components/RecurringTransactionModal'
+import Sidebar from './components/layout/Sidebar'
 import ThreeBackground from './components/ThreeBackground'
 import Reports from './components/Reports'
 
@@ -14,6 +17,8 @@ function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isReceiptUploadOpen, setIsReceiptUploadOpen] = useState(false)
+  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false)
+  const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = useState(false)
 
   // Preload animation
   const [isLoading, setIsLoading] = useState(true)
@@ -35,6 +40,8 @@ function App() {
       alert(result.message)
     }
   }
+
+
 
   useEffect(() => {
     // Simulate app loading
@@ -102,75 +109,133 @@ function App() {
 
   return (
     <div className="min-h-screen bg-animated relative overflow-hidden">
-      {/* Three.js Background - disable on Reports to reduce GPU load */}
-      {currentView !== 'reports' && <ThreeBackground />}
-      
-      {/* Header */}
-      <motion.header
-        className="glass border-b border-white/10 p-4 relative z-10"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <motion.div
-            className="flex items-center space-x-2"
-            whileHover={{ scale: 1.05 }}
-          >
-            <div className="w-8 h-8 bg-electric-gradient rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">E</span>
-            </div>
-            <h1 className="text-2xl font-bold bg-electric-gradient bg-clip-text text-transparent">
-              EZE Ledger
-            </h1>
-          </motion.div>
-          
-          <nav className="flex items-center space-x-4">
-            <motion.button
-              onClick={() => navigate('dashboard')}
-              className={`px-4 py-2 rounded-lg transition-all duration-300 ${
-                currentView === 'dashboard' 
-                  ? 'bg-electric-600 text-white' 
-                  : 'text-gray-300 hover:text-white hover:bg-white/10'
-              }`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Dashboard
-            </motion.button>
-            
-            <motion.button
-              onClick={() => setIsReceiptUploadOpen(true)}
-              className="btn-glass"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Add Expense
-            </motion.button>
-            
-            <motion.button
-              onClick={() => setIsImportModalOpen(true)}
-              className="btn-electric"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              AI Import
-            </motion.button>
+        {/* Three.js Background - disable on Reports to reduce GPU load */}
+        {currentView !== 'reports' && <ThreeBackground />}
+        
+        {/* Sidebar */}
+        <Sidebar
+          onViewReports={() => navigate('reports')}
+          onSetupRecurring={() => setIsRecurringModalOpen(true)}
+          onAddExpense={() => setIsReceiptUploadOpen(true)}
+          onAiImport={() => setIsImportModalOpen(true)}
+          onCreateInvoice={() => setIsCreateInvoiceModalOpen(true)}
+          activeItem={currentView === 'reports' ? 'reports' : 'dashboard'}
+          isAiImportOpen={isImportModalOpen}
+          isRecurringModalOpen={isRecurringModalOpen}
+          isAddExpenseOpen={isReceiptUploadOpen}
+          isCreateInvoiceOpen={isCreateInvoiceModalOpen}
+        />
+        
+        {/* AI Command Center Header */}
+        <motion.header
+          className="bg-slate-800/30 backdrop-blur-xl border-b border-white/10 relative z-10 transition-all duration-300"
+          style={{ marginLeft: 'var(--sidebar-w)' }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between max-w-7xl mx-auto">
+              {/* AI-First Branding */}
+              <motion.div
+                className="flex items-center space-x-3"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <div className="w-10 h-10 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/25">
+                  <span className="text-white font-bold text-lg">E</span>
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
+                    EZE Ledger
+                  </h1>
+                  <p className="text-xs text-slate-400">AI Financial Command Center</p>
+                </div>
+              </motion.div>
+              
+              {/* Navigation Pills */}
+              <nav className="flex items-center space-x-2">
+                <motion.button
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                    currentView === 'dashboard' 
+                      ? 'bg-violet-500/20 text-violet-300 border border-violet-400/30 shadow-lg shadow-violet-500/20' 
+                      : 'text-slate-400 hover:text-white hover:bg-slate-700/30 border border-transparent hover:border-white/10'
+                  }`}
+                  onClick={() => navigate('dashboard')}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  Dashboard
+                </motion.button>
+                
+                <motion.button
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                    currentView === 'reports' 
+                      ? 'bg-violet-500/20 text-violet-300 border border-violet-400/30 shadow-lg shadow-violet-500/20' 
+                      : 'text-slate-400 hover:text-white hover:bg-slate-700/30 border border-transparent hover:border-white/10'
+                  }`}
+                  onClick={() => navigate('reports')}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  Reports
+                </motion.button>
+              </nav>
 
-            <motion.button
-              onClick={handleResetData}
-              className="btn-red"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Reset Data
-            </motion.button>
-          </nav>
-        </div>
-      </motion.header>
+              {/* Quick Action Controls */}
+              <div className="flex items-center space-x-2">
+                <motion.button
+                  onClick={() => setIsReceiptUploadOpen(true)}
+                  className="px-3 py-2 text-sm font-medium text-slate-400 hover:text-white rounded-xl hover:bg-slate-700/30 border border-transparent hover:border-white/10 transition-all duration-300"
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  title="Add Expense (A)"
+                >
+                  Add Expense
+                </motion.button>
+                
+                <motion.button
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="px-3 py-2 text-sm font-medium bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 hover:from-violet-500/30 hover:to-fuchsia-500/30 border border-violet-400/30 text-violet-300 rounded-xl transition-all duration-300 shadow-lg shadow-violet-500/20"
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  title="AI Import (I)"
+                >
+                  AI Import
+                </motion.button>
+
+                <motion.button
+                  onClick={() => setIsCreateInvoiceModalOpen(true)}
+                  className="px-3 py-2 text-sm font-medium bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-400/30 text-emerald-300 rounded-xl transition-all duration-300 shadow-lg shadow-emerald-500/20"
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  title="Create Invoice (C)"
+                >
+                  Create Invoice
+                </motion.button>
+
+                <motion.button
+                  onClick={handleResetData}
+                  className="p-2 text-slate-400 hover:text-red-300 rounded-xl hover:bg-red-500/10 border border-transparent hover:border-red-400/20 transition-all duration-300 group"
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                  title="Reset Demo Data"
+                >
+                  <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </motion.button>
+              </div>
+            </div>
+          </div>
+        </motion.header>
 
       {/* Main Content */}
-      <main className="relative z-10">
+      <main 
+        className="relative z-10 transition-all duration-300"
+        style={{ marginLeft: 'var(--sidebar-w)' }}
+      >
         <AnimatePresence mode="wait">
           {currentView === 'dashboard' && (
             <motion.div
@@ -180,7 +245,13 @@ function App() {
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.4 }}
             >
-              <Dashboard onViewReports={() => navigate('reports')} />
+              <Dashboard 
+                onViewReports={() => navigate('reports')}
+                onAddExpense={() => setIsReceiptUploadOpen(true)}
+                onAiImport={() => setIsImportModalOpen(true)}
+                onCreateInvoice={() => setIsCreateInvoiceModalOpen(true)}
+                onSetupRecurring={() => setIsRecurringModalOpen(true)}
+              />
             </motion.div>
           )}
           {currentView === 'reports' && (
@@ -208,11 +279,25 @@ function App() {
             onClose={() => setIsImportModalOpen(false)}
           />
         )}
+
+        {isCreateInvoiceModalOpen && (
+          <AiInvoiceModal
+            isOpen={isCreateInvoiceModalOpen}
+            onClose={() => setIsCreateInvoiceModalOpen(false)}
+          />
+        )}
         
         {isReceiptUploadOpen && (
           <ReceiptUpload
             isOpen={isReceiptUploadOpen}
             onClose={() => setIsReceiptUploadOpen(false)}
+          />
+        )}
+        
+        {isRecurringModalOpen && (
+          <RecurringTransactionModal
+            isOpen={isRecurringModalOpen}
+            onClose={() => setIsRecurringModalOpen(false)}
           />
         )}
       </AnimatePresence>

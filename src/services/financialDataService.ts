@@ -58,6 +58,18 @@ const mapAICategoryToSystem = (aiCategory: string): keyof typeof ACCOUNT_MAPPING
     return 'COGS'
   }
   
+  // Insurance variations
+  if (category.includes('insurance') || category.includes('liability') || category.includes('coverage') ||
+      category.includes('policy') || category.includes('premium')) {
+    return 'INSURANCE'
+  }
+  
+  // Bank fees variations
+  if (category.includes('bank') || category.includes('fee') || category.includes('processing') ||
+      category.includes('transaction') || category.includes('merchant')) {
+    return 'BANK_FEES'
+  }
+  
   // If no match found, return the category as-is for auto-creation
   return 'OTHER'
 }
@@ -159,6 +171,13 @@ export class FinancialDataService {
     const liabilityAccounts = accounts.filter(a => a.type === 'LIABILITY')
     const equityAccounts = accounts.filter(a => a.type === 'EQUITY')
     
+    // Calculate net income (revenue - expenses) for retained earnings
+    const revenueAccounts = accounts.filter(a => a.type === 'REVENUE')
+    const expenseAccounts = accounts.filter(a => a.type === 'EXPENSE')
+    const totalRevenue = revenueAccounts.reduce((sum, a) => sum + a.balance, 0)
+    const totalExpenses = expenseAccounts.reduce((sum, a) => sum + a.balance, 0)
+    const netIncome = totalRevenue - totalExpenses
+    
     // Classify Current vs Non-Current Assets
     const currentAssets = assetAccounts.filter(a => 
       a.code.startsWith('10') || // Cash, A/R, Inventory
@@ -195,12 +214,23 @@ export class FinancialDataService {
     const totalNonCurrentAssets = nonCurrentAssets.reduce((sum, a) => sum + a.balance, 0)
     const totalCurrentLiabilities = currentLiabilities.reduce((sum, a) => sum + a.balance, 0)
     const totalLongTermLiabilities = longTermLiabilities.reduce((sum, a) => sum + a.balance, 0)
-    const totalEquity = equityAccounts.reduce((sum, a) => sum + a.balance, 0)
     
-    // Calculate financial ratios
+    // CORRECTED EQUITY CALCULATION: Use net income for retained earnings
+    const ownerEquityAccount = accounts.find(a => a.code === '3000')
+    const ownerEquityBalance = ownerEquityAccount?.balance || 0
+    const correctedRetainedEarnings = netIncome // Revenue - Expenses
+    const correctedTotalEquity = ownerEquityBalance + correctedRetainedEarnings
+    
+    // Create corrected equity accounts for display
+    const correctedEquityAccounts = [
+      { name: 'Owner\'s Equity', amount: ownerEquityBalance },
+      { name: 'Retained Earnings', amount: correctedRetainedEarnings }
+    ]
+    
+    // Calculate financial ratios using corrected equity
     const workingCapital = totalCurrentAssets - totalCurrentLiabilities
     const currentRatio = totalCurrentLiabilities > 0 ? totalCurrentAssets / totalCurrentLiabilities : 0
-    const debtToEquityRatio = totalEquity > 0 ? (totalCurrentLiabilities + totalLongTermLiabilities) / totalEquity : 0
+    const debtToEquityRatio = correctedTotalEquity > 0 ? (totalCurrentLiabilities + totalLongTermLiabilities) / correctedTotalEquity : 0
     
     const asOf = new Date().toISOString().slice(0, 10)
 
@@ -210,7 +240,7 @@ export class FinancialDataService {
       nonCurrentAssets: nonCurrentAssets.map(a => ({ name: a.name, amount: a.balance })),
       currentLiabilities: currentLiabilities.map(a => ({ name: a.name, amount: a.balance })),
       longTermLiabilities: longTermLiabilities.map(a => ({ name: a.name, amount: a.balance })),
-      equity: equityAccounts.map(a => ({ name: a.name, amount: a.balance })),
+      equity: correctedEquityAccounts, // Use corrected equity with proper retained earnings
       
       // Legacy format for compatibility
       assets: assetAccounts.map(a => ({ name: a.name, amount: a.balance })),
@@ -223,8 +253,8 @@ export class FinancialDataService {
         currentLiabilities: totalCurrentLiabilities,
         longTermLiabilities: totalLongTermLiabilities,
         totalLiabilities: totals.totalLiabilities,
-        totalEquity: totalEquity,
-        liabilitiesAndEquity: Number((totals.totalLiabilities + totals.totalEquity).toFixed(2)),
+        totalEquity: correctedTotalEquity, // Use corrected total equity
+        liabilitiesAndEquity: Number((totals.totalLiabilities + correctedTotalEquity).toFixed(2)),
         
         // Financial Ratios
         workingCapital: workingCapital,
@@ -234,7 +264,7 @@ export class FinancialDataService {
         // Legacy fields
         assets: totals.totalAssets,
         liabilities: totals.totalLiabilities,
-        equity: totals.totalEquity
+        equity: correctedTotalEquity // Use corrected equity
       }
     }
   }
@@ -245,31 +275,41 @@ export class FinancialDataService {
     
     const asOf = new Date().toISOString().slice(0, 10)
     
+    // Calculate net income for corrected retained earnings
+    const revenueAccounts = accounts.filter(a => a.type === 'REVENUE')
+    const expenseAccounts = accounts.filter(a => a.type === 'EXPENSE')
+    const totalRevenue = revenueAccounts.reduce((sum, a) => sum + a.balance, 0)
+    const totalExpenses = expenseAccounts.reduce((sum, a) => sum + a.balance, 0)
+    const netIncome = totalRevenue - totalExpenses
+    
     // Convert accounts to trial balance rows with enhanced information
     const rows = accounts.map(account => {
       let debit = 0
       let credit = 0
       
-      if (account.balance === 0) {
+      // CORRECTED: Use net income for Retained Earnings instead of account balance
+      const effectiveBalance = account.code === '3200' ? netIncome : account.balance
+      
+      if (effectiveBalance === 0) {
         // Zero balance - show as zeros
         debit = 0
         credit = 0
       } else if (account.normalBalance === 'DEBIT') {
         // Normal debit accounts (Assets, Expenses)
-        if (account.balance >= 0) {
-          debit = account.balance  // Positive balance shows in debit column
+        if (effectiveBalance >= 0) {
+          debit = effectiveBalance  // Positive balance shows in debit column
           credit = 0
         } else {
           debit = 0
-          credit = Math.abs(account.balance)  // Negative balance shows in credit column
+          credit = Math.abs(effectiveBalance)  // Negative balance shows in credit column
         }
       } else {
         // Normal credit accounts (Liabilities, Equity, Revenue)  
-        if (account.balance >= 0) {
+        if (effectiveBalance >= 0) {
           debit = 0
-          credit = account.balance  // Positive balance shows in credit column
+          credit = effectiveBalance  // Positive balance shows in credit column
         } else {
-          debit = Math.abs(account.balance)  // Negative balance shows in debit column
+          debit = Math.abs(effectiveBalance)  // Negative balance shows in debit column
           credit = 0
         }
       }
@@ -293,10 +333,10 @@ export class FinancialDataService {
         normalBalance: account.normalBalance,
         debit,
         credit,
-        balance: account.balance,
+        balance: effectiveBalance, // Use corrected balance for display
         transactionCount,
         lastActivity,
-        isActive: account.balance !== 0 || transactionCount > 0
+        isActive: effectiveBalance !== 0 || transactionCount > 0
       }
     }).sort((a, b) => a.accountCode.localeCompare(b.accountCode)) // Sort by account code
     
@@ -332,6 +372,13 @@ export class FinancialDataService {
   // Chart of Accounts Data
   static getChartOfAccountsData() {
     const { accounts, transactions } = useMockDataStore.getState()
+    
+    // Calculate net income for corrected retained earnings (CRITICAL FIX!)
+    const revenueAccounts = accounts.filter(a => a.type === 'REVENUE')
+    const expenseAccounts = accounts.filter(a => a.type === 'EXPENSE')
+    const totalRevenue = revenueAccounts.reduce((sum, a) => sum + a.balance, 0)
+    const totalExpenses = expenseAccounts.reduce((sum, a) => sum + a.balance, 0)
+    const netIncome = totalRevenue - totalExpenses
     
     // Enhanced account data with usage statistics
     const enhancedAccounts = accounts.map(account => {
@@ -386,20 +433,24 @@ export class FinancialDataService {
         return 'General ledger account'
       })()
       
+      // CORRECTED: Use net income for Retained Earnings instead of account balance
+      const correctedBalance = account.code === '3200' ? netIncome : account.balance
+      const correctedIsActive = account.code === '3200' ? (netIncome !== 0 || transactionCount > 0) : isActive
+      
       return {
         code: account.code,
         name: account.name,
         type: account.type,
         category: category,
         subcategory: subcategory,
-        balance: account.balance,
+        balance: correctedBalance, // Use corrected balance for Retained Earnings
         normalBalance: account.normalBalance,
         description: description,
-        isActive: isActive,
+        isActive: correctedIsActive, // Use corrected active status
         transactionCount: transactionCount,
         lastActivity: lastActivity,
         createdDate: '2025-01-01', // Default creation date for demo
-        status: isActive ? 'Active' : 'Inactive'
+        status: correctedIsActive ? 'Active' : 'Inactive'
       }
     }).sort((a, b) => a.code.localeCompare(b.code))
 
@@ -921,6 +972,8 @@ export class FinancialDataService {
     resetData()
     return { success: true, message: 'Data reset to initial state' }
   }
+
+
 }
 
 // Export for easier imports
