@@ -1,0 +1,399 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --sidebar-w: 320px;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+
+  :root.sidebar-collapsed {
+    --sidebar-w: 80px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-slate-700;
+  }
+  body {
+    @apply bg-slate-900 text-slate-50;
+  }
+}
+
+@layer base {
+  :root {
+    --electric-50: #f5f3ff;
+    --electric-100: #ede9fe;
+    --electric-200: #ddd6fe;
+    --electric-300: #c4b5fd;
+    --electric-400: #a78bfa;
+    --electric-500: #8b5cf6;
+    --electric-600: #7c3aed;
+    --electric-700: #6d28d9;
+    --electric-800: #5b21b6;
+    --electric-900: #4c1d95;
+  }
+
+  * {
+    border-color: theme('colors.border');
+  }
+
+  body {
+    @apply bg-gray-950 text-white antialiased;
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    background-attachment: fixed;
+  }
+
+  html, body, #root {
+    height: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Global dark scrollbar styling */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 58, 237, 0.6) rgba(255, 255, 255, 0.1);
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+  }
+}
+
+@layer components {
+  .bg-animated {
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+  }
+
+  @keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .card-glass {
+    @apply glass p-6 rounded-xl shadow-xl;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .btn-glass {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-300;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .btn-glass:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(124, 58, 237, 0.3);
+  }
+
+  .btn-electric {
+    @apply px-4 py-2 rounded-lg font-medium text-white transition-all duration-300;
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.2);
+  }
+
+  .btn-electric:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(124, 58, 237, 0.4);
+  }
+
+  .btn-red {
+    @apply px-4 py-2 rounded-lg font-medium text-white transition-all duration-300;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.2);
+  }
+
+  .btn-red:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(220, 38, 38, 0.4);
+  }
+
+  .input-glass {
+    @apply w-full px-3 py-2 rounded-lg border font-medium transition-all duration-300;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+  }
+
+  .input-glass::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .input-glass:focus {
+    outline: none;
+    border-color: rgba(124, 58, 237, 0.5);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+
+  .bg-electric-gradient {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+  }
+
+  /* Standard Electric Scrollbar */
+  .scrollbar-electric {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 58, 237, 0.5) rgba(255, 255, 255, 0.1);
+  }
+
+  .scrollbar-electric::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-electric::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+
+  .scrollbar-electric::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .scrollbar-electric::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+  }
+
+  /* Enhanced Kinetic Scrollbar for Dopamine UI */
+  .scrollbar-kinetic {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 58, 237, 0.8) rgba(255, 255, 255, 0.05);
+  }
+
+  .scrollbar-kinetic::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  .scrollbar-kinetic::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .scrollbar-kinetic::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+    transition: all 0.3s ease;
+  }
+
+  .scrollbar-kinetic::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 50%, #a855f7 100%);
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.5);
+  }
+
+  .scrollbar-kinetic::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%);
+    transform: scale(0.95);
+  }
+
+  .scrollbar-kinetic::-webkit-scrollbar-corner {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Force override Recharts default tooltip styling */
+  .recharts-tooltip-wrapper {
+    outline: none !important;
+  }
+
+  .recharts-default-tooltip {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .recharts-tooltip-cursor {
+    fill: rgba(124, 58, 237, 0.1) !important;
+  }
+
+  /* Custom chart tooltip styling */
+  .recharts-tooltip-item-list {
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .recharts-tooltip-item {
+    color: #a78bfa !important;
+  }
+
+  .recharts-tooltip-label {
+    color: #ffffff !important;
+  }
+}
+
+@layer utilities {
+  /* Kinetic scrolling */
+  .kinetic-scroll {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kinetic-scroll > * {
+    scroll-snap-align: start;
+  }
+
+  /* Text shadows for better readability on glass */
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .text-shadow-lg {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Custom animations */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes blink {
+  0%, 50% {
+    border-color: #7c3aed;
+  }
+  51%, 100% {
+    border-color: transparent;
+  }
+}
+
+/* Three.js canvas styles */
+.three-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Lottie animation container */
+.lottie-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 200px;
+}
+
+/* Modal and drawer overlays */
+.modal-overlay {
+  backdrop-filter: blur(20px);
+  background: rgba(15, 15, 35, 0.8);
+}
+
+.drawer-overlay {
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive design helpers */
+@media (max-width: 768px) {
+  .glass {
+    @apply backdrop-blur-md;
+  }
+
+  .card-glass {
+    @apply p-4;
+  }
+
+  .btn-electric, .btn-glass {
+    @apply px-4 py-2 text-sm;
+  }
+} 
+
+/* Recharts Tooltip Overrides */
+.recharts-default-tooltip {
+  background: rgba(17, 24, 39, 0.95) !important;
+  border: 2px solid rgba(168, 85, 247, 0.5) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 25px 50px -12px rgba(168, 85, 247, 0.3) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+.recharts-tooltip-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+} 

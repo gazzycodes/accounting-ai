@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Account {
+  id          String @id @default(cuid())
+  code        String @unique
+  name        String
+  type        AccountType
+  normalBalance NormalBalance // DEBIT or CREDIT - essential for accounting calculations
+  parentId    String?
+  parent      Account? @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children    Account[] @relation("AccountHierarchy")
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  debitEntries  TransactionEntry[] @relation("DebitAccount")
+  creditEntries TransactionEntry[] @relation("CreditAccount")
+  categories    Category[]
+
+  @@map("accounts")
+}
+
+model Transaction {
+  id          String @id @default(cuid())
+  date        DateTime
+  description String
+  reference   String @unique // Required for idempotency - prevents duplicate posting
+  amount      Decimal // Money field - enforce 2 decimal places in app code
+  customFields Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  entries     TransactionEntry[]
+  expense     Expense?
+  invoice     Invoice?
+
+  @@map("transactions")
+}
+
+model TransactionEntry {
+  id            String @id @default(cuid())
+  transactionId String
+  debitAccountId  String?
+  creditAccountId String?
+  amount        Decimal // Money field - enforce 2 decimal places in app code
+  description   String?
+
+  // Relations
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  debitAccount  Account? @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  creditAccount Account? @relation("CreditAccount", fields: [creditAccountId], references: [id])
+
+  @@map("transaction_entries")
+}
+
+model Expense {
+  id            String @id @default(cuid())
+  transactionId String @unique
+  vendor        String
+  categoryId    String?     // Now links to dynamic Category table
+  categoryKey   String?     // Fallback for enum categories (during transition)
+  date          DateTime
+  amount        Decimal // Money field - enforce 2 decimal places in app code
+  description   String?
+  receiptUrl    String?
+  customFields  Json?
+  isRecurring   Boolean @default(false)
+  isPending     Boolean @default(false) // For pending approval
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  transaction          Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  category             Category? @relation(fields: [categoryId], references: [id])
+  pendingApproval      PendingCategoryApproval?
+
+  @@map("expenses")
+}
+
+model Category {
+  id             String @id @default(cuid())
+  name           String @unique          // "Cloud Services", "Design Software"
+  key            String @unique          // "CLOUD_SERVICES", "DESIGN_SOFTWARE" 
+  accountCode    String                  // "6030", "6040" etc.
+  description    String?                 // AI's reasoning for this category
+  aiGenerated    Boolean @default(false) // True if created by AI suggestion
+  isApproved     Boolean @default(false) // User approved this category
+  suggestionData Json?                   // Store AI suggestion details
+  usageCount     Int @default(0)         // How many times used (for learning)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  expenses       Expense[]
+  account        Account @relation(fields: [accountCode], references: [code])
+
+  @@map("categories")
+}
+
+model PendingCategoryApproval {
+  id               String @id @default(cuid())
+  expenseId        String @unique           // Links to pending expense
+  suggestedName    String                   // AI suggested category name
+  suggestedKey     String                   // AI suggested category key
+  suggestedAccount String                   // AI suggested account code
+  aiReasoning      String?                  // Why AI chose this category
+  confidence       Float                    // AI confidence score (0-1)
+  expenseDetails   Json                     // Store original expense data
+  status           String @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  expense          Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@map("pending_category_approvals")
+}
+
+model Customer {
+  id          String @id @default(cuid())
+  name        String
+  company     String?
+  email       String @unique
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?
+  country     String @default("US")
+  isActive    Boolean @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  invoices    Invoice[]
+
+  @@map("customers")
+}
+
+model Invoice {
+  id            String @id @default(cuid())
+  transactionId String @unique
+  customerId    String?
+  customer      String // Keep for backward compatibility
+  invoiceNumber String @unique
+  date          DateTime
+  dueDate       DateTime?
+  amount        Decimal // Money field - enforce 2 decimal places in app code
+  description   String?
+  status        InvoiceStatus @default(DRAFT)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  customerRel   Customer? @relation(fields: [customerId], references: [id])
+
+  @@map("invoices")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum ExpenseCategory {
+  OFFICE_SUPPLIES
+  SOFTWARE
+  TRAVEL
+  MEALS
+  UTILITIES
+  RENT
+  PROFESSIONAL_SERVICES
+  MARKETING
+  EQUIPMENT
+  INSURANCE
+  LEGAL
+  TRAINING
+  ENTERTAINMENT
+  TELECOMMUNICATIONS
+  PHONE
+  INTERNET
+  BANK_FEES
+  SALARIES
+  SUBSCRIPTIONS
+  SUPPLIES
+  INVENTORY
+  DEPOSITS
+  OTHER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+} 
